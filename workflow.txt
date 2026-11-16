@@ -1,0 +1,839 @@
+{
+  "version": "1.0",
+  "inputs": [
+    {
+      "type": "WorkflowImage",
+      "name": "image"
+    }
+  ],
+  "steps": [
+    {
+      "type": "roboflow_core/roboflow_object_detection_model@v3",
+      "name": "people_detector",
+      "images": "$inputs.image",
+      "model_id": "rfdetr-nano",
+      "class_filter": [
+        "person"
+      ],
+      "confidence_mode": "custom",
+      "custom_confidence": 0.3
+    },
+    {
+      "type": "roboflow_core/sam3@v3",
+      "name": "badge_detector",
+      "images": "$inputs.image",
+      "model_id": "sam3/sam3_final",
+      "class_names": [
+        "identification badge worn on clothing"
+      ],
+      "output_format": "polygons"
+    },
+    {
+      "type": "Badge_Association",
+      "name": "badge_association",
+      "image": "$inputs.image",
+      "people": "$steps.people_detector.predictions",
+      "badges": "$steps.badge_detector.predictions"
+    },
+    {
+      "type": "roboflow_core/bounding_box_visualization@v1",
+      "name": "person_boxes",
+      "image": "$inputs.image",
+      "predictions": "$steps.badge_association.visual_predictions",
+      "color_axis": "CLASS",
+      "color_palette": "CUSTOM",
+      "custom_colors": [
+        "#17AC80",
+        "#F17272",
+        "#F1B84C"
+      ],
+      "thickness": 3
+    },
+    {
+      "type": "roboflow_core/label_visualization@v2",
+      "name": "person_labels",
+      "image": "$steps.person_boxes.image",
+      "predictions": "$steps.badge_association.visual_predictions",
+      "color_axis": "CLASS",
+      "color_palette": "CUSTOM",
+      "custom_colors": [
+        "#17AC80",
+        "#F17272",
+        "#F1B84C"
+      ],
+      "text": "Class",
+      "text_position": "TOP_LEFT",
+      "text_scale": 0.55,
+      "copy_image": false
+    },
+    {
+      "type": "roboflow_core/bounding_box_visualization@v1",
+      "name": "badge_boxes",
+      "image": "$steps.person_labels.image",
+      "predictions": "$steps.badge_detector.predictions",
+      "color_axis": "CLASS",
+      "color_palette": "CUSTOM",
+      "custom_colors": [
+        "#35C5F4"
+      ],
+      "thickness": 2,
+      "copy_image": false
+    },
+    {
+      "type": "roboflow_core/sam3@v3",
+      "name": "lanyard_detector",
+      "images": "$inputs.image",
+      "model_id": "sam3/sam3_final",
+      "class_names": [
+        "lanyard strap"
+      ],
+      "output_format": "polygons"
+    },
+    {
+      "type": "Lanyard_Color_Check",
+      "name": "lanyard_color_check",
+      "image": "$inputs.image",
+      "lanyards": "$steps.lanyard_detector.predictions"
+    },
+    {
+      "type": "roboflow_core/dynamic_crop@v1",
+      "name": "lanyard_crop",
+      "images": "$inputs.image",
+      "predictions": "$steps.lanyard_detector.predictions"
+    },
+    {
+      "type": "roboflow_core/image_preprocessing@v1",
+      "name": "rotate_lanyard",
+      "image": "$steps.lanyard_crop.crops",
+      "task_type": "rotate",
+      "rotation_degrees": 90
+    },
+    {
+      "type": "roboflow_core/glm_ocr@v1",
+      "name": "read_lanyard",
+      "images": "$steps.rotate_lanyard.image",
+      "task_type": "text-recognition"
+    },
+    {
+      "type": "Lanyard_Company_Text_Check",
+      "name": "lanyard_company_text_check",
+      "ocr_text": "$steps.read_lanyard.parsed_output"
+    },
+    {
+      "type": "roboflow_core/dimension_collapse@v1",
+      "name": "flatten_lanyard_text",
+      "data": "$steps.lanyard_company_text_check.company_text_assessment"
+    },
+    {
+      "type": "Company_Lanyard_Association",
+      "name": "company_lanyard_association",
+      "people_status": "$steps.badge_association.person_status",
+      "lanyards": "$steps.lanyard_detector.predictions",
+      "color_assessments": "$steps.lanyard_color_check.assessments",
+      "text_assessments": "$steps.text_assessments_or_empty.output"
+    },
+    {
+      "type": "Lanyard_Text_Overlay",
+      "name": "lanyard_text_overlay",
+      "lanyards": "$steps.lanyard_detector.predictions",
+      "color_assessments": "$steps.lanyard_color_check.assessments",
+      "text_assessments": "$steps.text_assessments_or_empty.output"
+    },
+    {
+      "type": "roboflow_core/bounding_box_visualization@v1",
+      "name": "lanyard_color_boxes",
+      "image": "$steps.badge_boxes.image",
+      "predictions": "$steps.lanyard_color_check.visual_predictions",
+      "color_axis": "CLASS",
+      "color_palette": "CUSTOM",
+      "custom_colors": [
+        "#2762C9",
+        "#E89B35",
+        "#88929C"
+      ],
+      "thickness": 2,
+      "copy_image": true
+    },
+    {
+      "type": "roboflow_core/label_visualization@v2",
+      "name": "lanyard_color_labels",
+      "image": "$steps.lanyard_color_boxes.image",
+      "predictions": "$steps.lanyard_text_overlay.visual_predictions",
+      "color_axis": "CLASS",
+      "color_palette": "CUSTOM",
+      "custom_colors": [
+        "#2762C9",
+        "#E89B35",
+        "#88929C"
+      ],
+      "text": "Class",
+      "text_position": "BOTTOM_LEFT",
+      "text_scale": 0.4,
+      "text_padding": 2,
+      "copy_image": false
+    },
+    {
+      "type": "roboflow_core/first_non_empty_or_default@v1",
+      "name": "lanyard_signals_or_empty",
+      "data": [
+        "$steps.company_lanyard_association.lanyard_company_signals"
+      ],
+      "default": []
+    },
+    {
+      "type": "roboflow_core/first_non_empty_or_default@v1",
+      "name": "person_signals_or_empty",
+      "data": [
+        "$steps.company_lanyard_association.person_company_signals"
+      ],
+      "default": []
+    },
+    {
+      "type": "roboflow_core/first_non_empty_or_default@v1",
+      "name": "lanyard_visual_or_empty",
+      "data": [
+        "$steps.lanyard_text_overlay.visual_assessments"
+      ],
+      "default": []
+    },
+    {
+      "type": "roboflow_core/first_non_empty_or_default@v1",
+      "name": "text_assessments_or_empty",
+      "data": [
+        "$steps.flatten_lanyard_text.output"
+      ],
+      "default": []
+    }
+  ],
+  "outputs": [
+    {
+      "type": "JsonField",
+      "name": "person_status",
+      "selector": "$steps.badge_association.person_status"
+    },
+    {
+      "type": "JsonField",
+      "name": "output_image",
+      "selector": "$steps.lanyard_color_labels.image"
+    },
+    {
+      "type": "JsonField",
+      "name": "person_predictions",
+      "selector": "$steps.badge_association.person_predictions"
+    },
+    {
+      "type": "JsonField",
+      "name": "badge_predictions",
+      "selector": "$steps.badge_detector.predictions"
+    },
+    {
+      "type": "JsonField",
+      "name": "lanyard_color_assessment",
+      "selector": "$steps.lanyard_color_check.assessments"
+    },
+    {
+      "type": "JsonField",
+      "name": "navy_lanyard_candidate",
+      "selector": "$steps.lanyard_color_check.any_navy_candidate"
+    },
+    {
+      "type": "JsonField",
+      "name": "lanyard_text",
+      "selector": "$steps.read_lanyard.parsed_output"
+    },
+    {
+      "type": "JsonField",
+      "name": "company_text_assessment",
+      "selector": "$steps.lanyard_company_text_check.company_text_assessment"
+    },
+    {
+      "type": "JsonField",
+      "name": "company_text_match",
+      "selector": "$steps.lanyard_company_text_check.any_company_text_match"
+    },
+    {
+      "type": "JsonField",
+      "name": "lanyard_company_signals",
+      "selector": "$steps.lanyard_signals_or_empty.output"
+    },
+    {
+      "type": "JsonField",
+      "name": "person_company_signals",
+      "selector": "$steps.person_signals_or_empty.output"
+    },
+    {
+      "type": "JsonField",
+      "name": "lanyard_visual_assessments",
+      "selector": "$steps.lanyard_visual_or_empty.output"
+    }
+  ],
+  "dynamic_blocks_definitions": [
+    {
+      "type": "DynamicBlockDefinition",
+      "manifest": {
+        "type": "ManifestDescription",
+        "block_type": "Badge_Association",
+        "description": "Associate detected badges with people and generate person status and visualization predictions.",
+        "inputs": {
+          "image": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "input_image"
+            ],
+            "selector_data_kind": {
+              "input_image": [
+                "image"
+              ]
+            }
+          },
+          "people": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "object_detection_prediction"
+              ]
+            }
+          },
+          "badges": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "instance_segmentation_prediction"
+              ]
+            }
+          }
+        },
+        "outputs": {
+          "person_status": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "list_of_values"
+            ]
+          },
+          "person_predictions": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "dictionary"
+            ]
+          },
+          "visual_predictions": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "object_detection_prediction"
+            ]
+          }
+        }
+      },
+      "code": {
+        "type": "PythonCode",
+        "imports": [],
+        "run_function_code": "def run(self, image, people, badges):\n    h, w = image.numpy_image.shape[:2]\n    n = len(people)\n    out = people[np.arange(n, dtype=int)]\n    raw_ids = list(people.data.get('detection_id', []))\n    MIN_W, MIN_H = 60, 120\n    EDGE = 2\n    BOTTOM_FRAC = 0.03\n    SHORT_BOX_FRAC = 0.45\n    TORSO_TOP, TORSO_BOTTOM = 0.10, 0.75\n    CHEST = 0.40\n    MAX_BADGE_W, MAX_BADGE_H = 0.45, 0.40\n    OCCLUDED_FRAC = 0.40\n    pb = [[float(v) for v in p] for p in people.xyxy]\n    areas = [max(0.0, b[2]-b[0])*max(0.0, b[3]-b[1]) for b in pb]\n    occluded = [False] * n\n    for i in range(n):\n        if areas[i] <= 0:\n            continue\n        for k in range(n):\n            if k == i or areas[k] <= areas[i]:\n                continue\n            ix = max(0.0, min(pb[i][2],pb[k][2])-max(pb[i][0],pb[k][0]))\n            iy = max(0.0, min(pb[i][3],pb[k][3])-max(pb[i][1],pb[k][1]))\n            if ix*iy/areas[i] > OCCLUDED_FRAC:\n                occluded[i] = True\n                break\n    in_box = {i: [] for i in range(n)}\n    in_torso = {i: [] for i in range(n)}\n    for j, b in enumerate(badges.xyxy):\n        bx1,by1,bx2,by2 = [float(v) for v in b]\n        cx,cy = (bx1+bx2)/2.0,(by1+by2)/2.0\n        bw,bh = bx2-bx1,by2-by1\n        best,best_d = None,None\n        for i in range(n):\n            x1,y1,x2,y2 = pb[i]\n            pw,ph = x2-x1,y2-y1\n            if pw <= 0 or ph <= 0:\n                continue\n            if not (x1 <= cx <= x2 and y1 <= cy <= y2):\n                continue\n            if bw > MAX_BADGE_W*pw or bh > MAX_BADGE_H*ph:\n                continue\n            dx = (cx-(x1+x2)/2.0)/pw\n            dy = (cy-(y1+CHEST*ph))/ph\n            d = dx*dx+dy*dy\n            if best is None or d < best_d:\n                best,best_d = i,d\n        if best is not None:\n            y1b,y2b = pb[best][1],pb[best][3]\n            phb = y2b-y1b\n            in_box[best].append(j)\n            if y1b+TORSO_TOP*phb <= cy <= y1b+TORSO_BOTTOM*phb:\n                in_torso[best].append(j)\n    statuses,labels,class_ids,boxes = [],[],[],[]\n    for i in range(n):\n        x1,y1,x2,y2 = pb[i]\n        pw,ph = x2-x1,y2-y1\n        too_small = pw < MIN_W or ph < MIN_H\n        cropped = x1 <= EDGE or x2 >= w-EDGE or y1 <= EDGE or (y2 >= h-BOTTOM_FRAC*h and ph < SHORT_BOX_FRAC*h)\n        if in_torso[i]:\n            status = 'id_visible'\n            note = 'Badge detected on this person; verify it is an ID.'\n        elif in_box[i]:\n            status = 'unknown'\n            note = 'A badge-like object overlaps this person outside the chest area; review required.'\n        elif too_small or cropped:\n            status = 'unknown'\n            note = 'Person is small or cropped; ID visibility cannot be assessed reliably.'\n        elif occluded[i]:\n            status = 'unknown'\n            note = 'Person is partly hidden; ID visibility cannot be assessed reliably.'\n        else:\n            status = 'id_not_visible'\n            note = 'No badge detected; it may be hidden or missed. Review required.'\n        label_id = {'id_visible':0,'id_not_visible':1,'unknown':2}[status]\n        labels.append(status)\n        class_ids.append(label_id)\n        statuses.append({'person_index':i,'status':status,'note':note,'badge_indices':in_box[i],'person_box':[x1,y1,x2,y2]})\n        conf = people.confidence\n        boxes.append({'x':(x1+x2)/2,'y':(y1+y2)/2,'width':pw,'height':ph,'confidence':float(conf[i]) if conf is not None and i < len(conf) else None,'class':status,'class_id':label_id,'detection_id':str(raw_ids[i]) if i < len(raw_ids) and raw_ids[i] is not None else None})\n    out.data['class_name'] = np.asarray(labels,dtype=str)\n    out.class_id = np.asarray(class_ids,dtype=int)\n    return {'person_status':statuses,'person_predictions':{'image':{'width':int(w),'height':int(h)},'predictions':boxes},'visual_predictions':out}"
+      }
+    },
+    {
+      "type": "DynamicBlockDefinition",
+      "manifest": {
+        "type": "ManifestDescription",
+        "block_type": "Lanyard_Color_Check",
+        "description": "Check dark navy-blue fabric pixels within segmented lanyard masks. This is only a colour candidate, not company identification.",
+        "inputs": {
+          "image": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "input_image"
+            ],
+            "selector_data_kind": {
+              "input_image": [
+                "image"
+              ]
+            }
+          },
+          "lanyards": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "instance_segmentation_prediction"
+              ]
+            }
+          }
+        },
+        "outputs": {
+          "assessments": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "list_of_values"
+            ]
+          },
+          "any_navy_candidate": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "boolean"
+            ]
+          },
+          "visual_predictions": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "instance_segmentation_prediction"
+            ]
+          }
+        }
+      },
+      "code": {
+        "type": "PythonCode",
+        "imports": [],
+        "run_function_code": "def run(self, image, lanyards):\n    arr = image.numpy_image\n    if arr.ndim == 2:\n        arr = cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR)\n    elif arr.shape[2] == 4:\n        arr = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)\n    hsv = cv2.cvtColor(arr, cv2.COLOR_BGR2HSV)\n    h,w = arr.shape[:2]\n    assessments = []\n    masks = lanyards.mask\n    keep,labels,ids = [],[],[]\n    for i,box in enumerate(lanyards.xyxy):\n        x1,y1,x2,y2 = [int(round(float(v))) for v in box]\n        x1,x2 = max(0,x1),min(w,x2)\n        y1,y2 = max(0,y1),min(h,y2)\n        item = {'lanyard_index':i,'box':[x1,y1,x2,y2],'status':'unknown','navy_fraction':0.0}\n        visible = x2-x1 >= 6 and y2-y1 >= 12\n        if masks is not None and i < len(masks) and x2 > x1 and y2 > y1:\n            mask = masks[i,y1:y2,x1:x2].astype(bool)\n            if mask.size > 0 and int(np.count_nonzero(mask)) >= 100:\n                pixels = hsv[y1:y2,x1:x2][mask]\n                navy = (pixels[:,0] >= 96) & (pixels[:,0] <= 132) & (pixels[:,1] >= 50) & (pixels[:,2] >= 22) & (pixels[:,2] <= 200)\n                fraction = float(np.mean(navy))\n                item['navy_fraction'] = round(fraction,3)\n                item['status'] = 'navy_candidate' if fraction >= 0.40 else 'different_or_unclear'\n        assessments.append(item)\n        if visible:\n            keep.append(i)\n            status = item['status']\n            ids.append(0 if status == 'navy_candidate' else 1 if status == 'different_or_unclear' else 2)\n            labels.append('Navy candidate' if status == 'navy_candidate' else 'Not navy / unclear' if status == 'different_or_unclear' else 'Color unclear')\n    visual = lanyards[np.asarray(keep,dtype=int)]\n    visual.class_id = np.asarray(ids,dtype=int)\n    visual.data['class_name'] = np.asarray(labels,dtype=str)\n    return {'assessments':assessments,'any_navy_candidate':any(x['status']=='navy_candidate' for x in assessments),'visual_predictions':visual}"
+      }
+    },
+    {
+      "type": "DynamicBlockDefinition",
+      "manifest": {
+        "type": "ManifestDescription",
+        "block_type": "Lanyard_Company_Text_Check",
+        "description": "Classify OCR text as company matched, partial, unmatched, or unreadable.",
+        "inputs": {
+          "ocr_text": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "string",
+                "language_model_output"
+              ]
+            }
+          }
+        },
+        "outputs": {
+          "company_text_assessment": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "list_of_values"
+            ]
+          },
+          "any_company_text_match": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "boolean"
+            ]
+          }
+        }
+      },
+      "code": {
+        "type": "PythonCode",
+        "imports": [
+          "import re",
+          "from difflib import SequenceMatcher"
+        ],
+        "run_function_code": "def run(self, ocr_text):\n    texts = ocr_text if isinstance(ocr_text, list) else [ocr_text]\n    results = []\n    core = ['VIRTUAL','HEIGHT','IT','SERVICES']\n    suffix = ['PVT','LTD']\n    for i,value in enumerate(texts):\n        raw = str(value.get('text', value.get('output', value)) or '') if isinstance(value,dict) else str(value or '')\n        tokens = re.findall(r'[A-Z0-9]+', raw.upper())\n        def close(token, expected):\n            # 0.8 similarity is too permissive for two- and three-letter words:\n            # a single changed character could turn another abbreviation into a match.\n            if len(expected) <= 3:\n                return token == expected\n            return SequenceMatcher(None, token, expected).ratio() >= 0.8\n        def contains_seq(seq):\n            return any(all(close(tokens[k+j],word) for j,word in enumerate(seq)) for k in range(len(tokens)-len(seq)+1))\n        core_match = contains_seq(core)\n        suffix_match = contains_seq(suffix)\n        matched = contains_seq(core + suffix)\n        if matched:\n            status = 'company_text_match'\n            note = 'Target company print appears in OCR; visual clue only, not proof of employer, ID, or authenticity.'\n        elif core_match or suffix_match or any(close(t,word) for t in tokens for word in ('VIRTUAL','HEIGHT','SERVICES')):\n            status = 'partial_match'\n            note = 'Only part of the expected company print was read.'\n        elif len(''.join(tokens)) >= 8:\n            status = 'company_text_unmatched'\n            note = 'Text was read but the expected full company print did not match; no employer inference.'\n        else:\n            status = 'text_unreadable'\n            note = 'Insufficient readable text to compare.'\n        results.append({'lanyard_index':i,'status':status,'company':'Virtual Height IT Services Pvt. Ltd.' if matched else None,'core_match':bool(core_match),'suffix_match':bool(suffix_match),'read_text':raw,'note':note})\n    return {'company_text_assessment':results,'any_company_text_match':any(r['status']=='company_text_match' for r in results)}"
+      }
+    },
+    {
+      "type": "DynamicBlockDefinition",
+      "manifest": {
+        "type": "ManifestDescription",
+        "block_type": "Company_Lanyard_Association",
+        "description": "Associate lanyard colour and company text signals with people. A printed-name match is required to assign the target company.",
+        "inputs": {
+          "people_status": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "list_of_values"
+              ]
+            }
+          },
+          "lanyards": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "instance_segmentation_prediction"
+              ]
+            }
+          },
+          "color_assessments": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "list_of_values"
+              ]
+            }
+          },
+          "text_assessments": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "list_of_values"
+              ]
+            }
+          }
+        },
+        "outputs": {
+          "lanyard_company_signals": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "list_of_values"
+            ]
+          },
+          "person_company_signals": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "list_of_values"
+            ]
+          }
+        }
+      },
+      "code": {
+        "type": "PythonCode",
+        "imports": [],
+        "run_function_code": "def run(self, people_status, lanyards, color_assessments, text_assessments):\n    def flatten(v):\n        if isinstance(v,dict): return [v]\n        if isinstance(v,(list,tuple)): return [x for item in v for x in flatten(item)]\n        return []\n    colors = {int(a['lanyard_index']):a for a in flatten(color_assessments) if 'lanyard_index' in a}\n    texts = {i:a for i,a in enumerate(flatten(text_assessments))}\n    people = flatten(people_status)\n    assigned = {int(p['person_index']):[] for p in people if 'person_index' in p}\n    signals = []\n    for j,box in enumerate(lanyards.xyxy):\n        x1,y1,x2,y2 = [float(v) for v in box]\n        cx,cy = (x1+x2)/2,(y1+y2)/2\n        color,text = colors.get(j,{}),texts.get(j,{})\n        credible = (x2-x1 >= 5 and y2-y1 >= 5)\n        best,distance = None,float('inf')\n        if credible:\n            for p in people:\n                if 'person_index' not in p or 'person_box' not in p: continue\n                px1,py1,px2,py2 = [float(v) for v in p['person_box']]\n                pw,ph = px2-px1,py2-py1\n                if pw <= 0 or ph <= 0 or not (px1 <= cx <= px2 and py1 <= cy <= py1+0.85*ph): continue\n                d = ((cx-(px1+px2)/2)/pw)**2 + ((cy-(py1+0.40*ph))/ph)**2\n                if d < distance: best,distance = int(p['person_index']),d\n        navy = credible and color.get('status') == 'navy_candidate'\n        printed = credible and text.get('status') == 'company_text_match'\n        status = 'name_and_color_match' if navy and printed else 'printed_name_match' if printed else 'color_candidate' if navy else 'unknown'\n        signal = {'lanyard_index':j,'person_index':best,'company_signal':status,'company_text_status':text.get('status','text_unreadable'),'read_text':text.get('read_text',''),'company':'Virtual Height IT Services Pvt. Ltd.' if printed else None,'navy_fraction':color.get('navy_fraction'),'printed_name_match':bool(printed),'note':'Visual clue only; not proof of card authenticity, employer, or wearer identity.'}\n        signals.append(signal)\n        if best is not None: assigned[best].append(signal)\n    per_person = []\n    rank = {'name_and_color_match':3,'printed_name_match':2,'color_candidate':1,'unknown':0}\n    for p in people:\n        if 'person_index' not in p: continue\n        i = int(p['person_index'])\n        matches = assigned.get(i,[])\n        chosen = max(matches,key=lambda v:rank[v['company_signal']]) if matches else None\n        per_person.append({'person_index':i,'id_visibility':p.get('status','unknown'),'company_signal':chosen['company_signal'] if chosen else 'unknown','company_text_status':chosen['company_text_status'] if chosen else 'text_unreadable','company':chosen['company'] if chosen else None,'lanyard_indices':[m['lanyard_index'] for m in matches],'note':'Visual company clue only; never an access-control decision.'})\n    return {'lanyard_company_signals':signals,'person_company_signals':per_person}"
+      }
+    },
+    {
+      "type": "DynamicBlockDefinition",
+      "manifest": {
+        "type": "ManifestDescription",
+        "block_type": "Lanyard_Text_Overlay",
+        "description": "Add combined lanyard colour and company OCR status labels to the lanyard segmentation predictions for image visualization.",
+        "inputs": {
+          "lanyards": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "instance_segmentation_prediction"
+              ]
+            }
+          },
+          "color_assessments": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "list_of_values"
+              ]
+            }
+          },
+          "text_assessments": {
+            "type": "DynamicInputDefinition",
+            "selector_types": [
+              "step_output"
+            ],
+            "selector_data_kind": {
+              "step_output": [
+                "list_of_values"
+              ]
+            }
+          }
+        },
+        "outputs": {
+          "visual_predictions": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "instance_segmentation_prediction"
+            ]
+          },
+          "visual_assessments": {
+            "type": "DynamicOutputDefinition",
+            "kind": [
+              "list_of_values"
+            ]
+          }
+        }
+      },
+      "code": {
+        "type": "PythonCode",
+        "imports": [],
+        "run_function_code": "def run(self, lanyards, color_assessments, text_assessments):\n    def flatten(v):\n        if isinstance(v,dict): return [v]\n        if isinstance(v,(list,tuple)): return [x for item in v for x in flatten(item)]\n        return []\n    colors = {int(a['lanyard_index']):a for a in flatten(color_assessments) if 'lanyard_index' in a}\n    texts = {i:a for i,a in enumerate(flatten(text_assessments))}\n    keep,labels,class_ids,assessments = [],[],[],[]\n    for i,box in enumerate(lanyards.xyxy):\n        x1,y1,x2,y2 = [float(v) for v in box]\n        if x2-x1 < 6 or y2-y1 < 12:\n            continue\n        color = colors.get(i,{})\n        text = texts.get(i,{})\n        color_status = color.get('status','unknown')\n        text_status = text.get('status','text_unreadable')\n        color_label = 'Navy?' if color_status == 'navy_candidate' else 'Other/unclear' if color_status == 'different_or_unclear' else 'Color?'\n        text_label = {'company_text_match':'Name: MATCH','company_text_unmatched':'Name: NO MATCH','partial_match':'Name: PARTIAL','text_unreadable':'Name: UNREADABLE'}.get(text_status,'Name: UNREADABLE')\n        label = color_label + ' | ' + text_label\n        keep.append(i)\n        labels.append(label)\n        class_ids.append(0 if color_status == 'navy_candidate' else 1 if color_status == 'different_or_unclear' else 2)\n        assessments.append({'lanyard_index':i,'color_status':color_status,'company_text_status':text_status,'label':label,'read_text':text.get('read_text',''),'company':'Virtual Height IT Services Pvt. Ltd.' if text_status == 'company_text_match' else None})\n    visual = lanyards[np.asarray(keep,dtype=int)]\n    visual.class_id = np.asarray(class_ids,dtype=int)\n    visual.data['class_name'] = np.asarray(labels,dtype=str)\n    return {'visual_predictions':visual,'visual_assessments':assessments}"
+      }
+    }
+  ],
+  "metadata": {
+    "ui": {
+      "nodes": {
+        "$inputs": {
+          "x": 320,
+          "y": 0
+        },
+        "$steps.people_detector": {
+          "x": 0,
+          "y": 236
+        },
+        "$steps.badge_detector": {
+          "x": 330,
+          "y": 236
+        },
+        "$steps.badge_association": {
+          "x": 155,
+          "y": 387
+        },
+        "$steps.person_boxes": {
+          "x": 68,
+          "y": 528
+        },
+        "$steps.person_labels": {
+          "x": 68,
+          "y": 669
+        },
+        "$steps.badge_boxes": {
+          "x": 68,
+          "y": 810
+        },
+        "$steps.lanyard_detector": {
+          "x": 748,
+          "y": 236
+        },
+        "$steps.lanyard_color_check": {
+          "x": 583,
+          "y": 810
+        },
+        "$steps.lanyard_crop": {
+          "x": 913,
+          "y": 387
+        },
+        "$steps.rotate_lanyard": {
+          "x": 913,
+          "y": 528
+        },
+        "$steps.read_lanyard": {
+          "x": 913,
+          "y": 669
+        },
+        "$steps.lanyard_company_text_check": {
+          "x": 913,
+          "y": 810
+        },
+        "$steps.flatten_lanyard_text": {
+          "x": 913,
+          "y": 951
+        },
+        "$steps.company_lanyard_association": {
+          "x": 485,
+          "y": 1092
+        },
+        "$steps.lanyard_text_overlay": {
+          "x": 835,
+          "y": 1092
+        },
+        "$outputs": {
+          "x": 320,
+          "y": 1233
+        },
+        "$steps.lanyard_color_boxes": {
+          "x": 68,
+          "y": 951
+        },
+        "$steps.lanyard_color_labels": {
+          "x": 68,
+          "y": 1092
+        }
+      },
+      "edges": [
+        {
+          "source": "$inputs",
+          "target": "$steps.people_detector",
+          "inputProperty": "images",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$inputs",
+          "target": "$steps.badge_detector",
+          "inputProperty": "images",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.people_detector",
+          "target": "$steps.badge_association",
+          "inputProperty": "people",
+          "sourceSelector": "predictions"
+        },
+        {
+          "source": "$steps.badge_detector",
+          "target": "$steps.badge_association",
+          "inputProperty": "badges",
+          "sourceSelector": "predictions"
+        },
+        {
+          "source": "$steps.badge_association",
+          "target": "$steps.person_boxes",
+          "inputProperty": "predictions",
+          "sourceSelector": "visual_predictions"
+        },
+        {
+          "source": "$steps.person_boxes",
+          "target": "$steps.person_labels",
+          "inputProperty": "image",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.person_labels",
+          "target": "$steps.badge_boxes",
+          "inputProperty": "image",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$inputs",
+          "target": "$steps.lanyard_detector",
+          "inputProperty": "images",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.lanyard_detector",
+          "target": "$steps.lanyard_color_check",
+          "inputProperty": "lanyards",
+          "sourceSelector": "predictions"
+        },
+        {
+          "source": "$steps.lanyard_detector",
+          "target": "$steps.lanyard_crop",
+          "inputProperty": "predictions",
+          "sourceSelector": "predictions"
+        },
+        {
+          "source": "$steps.lanyard_crop",
+          "target": "$steps.rotate_lanyard",
+          "inputProperty": "image",
+          "sourceSelector": "crops"
+        },
+        {
+          "source": "$steps.rotate_lanyard",
+          "target": "$steps.read_lanyard",
+          "inputProperty": "images",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.read_lanyard",
+          "target": "$steps.lanyard_company_text_check",
+          "inputProperty": "ocr_text",
+          "sourceSelector": "parsed_output"
+        },
+        {
+          "source": "$steps.lanyard_company_text_check",
+          "target": "$steps.flatten_lanyard_text",
+          "inputProperty": "data",
+          "sourceSelector": "company_text_assessment"
+        },
+        {
+          "source": "$steps.badge_association",
+          "target": "$steps.company_lanyard_association",
+          "inputProperty": "people_status",
+          "sourceSelector": "person_status"
+        },
+        {
+          "source": "$steps.lanyard_color_check",
+          "target": "$steps.company_lanyard_association",
+          "inputProperty": "color_assessments",
+          "sourceSelector": "assessments"
+        },
+        {
+          "source": "$steps.lanyard_color_check",
+          "target": "$steps.lanyard_text_overlay",
+          "inputProperty": "color_assessments",
+          "sourceSelector": "assessments"
+        },
+        {
+          "source": "$steps.badge_boxes",
+          "target": "$steps.lanyard_color_boxes",
+          "inputProperty": "image",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.lanyard_color_check",
+          "target": "$steps.lanyard_color_boxes",
+          "inputProperty": "predictions",
+          "sourceSelector": "visual_predictions"
+        },
+        {
+          "source": "$steps.lanyard_color_boxes",
+          "target": "$steps.lanyard_color_labels",
+          "inputProperty": "image",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.lanyard_color_labels",
+          "target": "$outputs",
+          "sourceSelector": "image"
+        },
+        {
+          "source": "$steps.flatten_lanyard_text",
+          "target": "$steps.text_assessments_or_empty",
+          "inputProperty": "data"
+        },
+        {
+          "source": "$steps.text_assessments_or_empty",
+          "target": "$steps.company_lanyard_association",
+          "inputProperty": "text_assessments",
+          "sourceSelector": "output"
+        },
+        {
+          "source": "$steps.text_assessments_or_empty",
+          "target": "$steps.lanyard_text_overlay",
+          "inputProperty": "text_assessments",
+          "sourceSelector": "output"
+        },
+        {
+          "source": "$steps.lanyard_text_overlay",
+          "target": "$steps.lanyard_color_labels",
+          "inputProperty": "predictions",
+          "sourceSelector": "visual_predictions"
+        },
+        {
+          "source": "$steps.company_lanyard_association",
+          "target": "$steps.lanyard_signals_or_empty",
+          "inputProperty": "data"
+        },
+        {
+          "source": "$steps.company_lanyard_association",
+          "target": "$steps.person_signals_or_empty",
+          "inputProperty": "data"
+        },
+        {
+          "source": "$steps.lanyard_text_overlay",
+          "target": "$steps.lanyard_visual_or_empty",
+          "inputProperty": "data"
+        },
+        {
+          "source": "$steps.lanyard_signals_or_empty",
+          "target": "$outputs",
+          "sourceSelector": "output"
+        },
+        {
+          "source": "$steps.person_signals_or_empty",
+          "target": "$outputs",
+          "sourceSelector": "output"
+        },
+        {
+          "source": "$steps.lanyard_visual_or_empty",
+          "target": "$outputs",
+          "sourceSelector": "output"
+        }
+      ],
+      "groups": []
+    }
+  }
+}
