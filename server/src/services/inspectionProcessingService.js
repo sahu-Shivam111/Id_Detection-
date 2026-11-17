@@ -320,8 +320,13 @@ const processInspection = async (inspectionId) => {
         };
         track.removalPeriods.push(period);
         track.activeRemovalPeriod = period;
+        track.removalEvidenceAttempts = 0;
       }
       if (track.removalEvent) return;
+      if ((track.removalEvidenceAttempts ?? 0) >= 2) {
+        return;
+      }
+      track.removalEvidenceAttempts = (track.removalEvidenceAttempts ?? 0) + 1;
 
       const evidence = {
         person,
@@ -387,7 +392,7 @@ const processInspection = async (inspectionId) => {
         const event = await DetectionEvent.findByIdAndUpdate(
           track.removalEvent._id,
           { $set: { resolved: true, resolvedAt: new Date() } },
-          { new: true }
+          { returnDocument: "after" }
         );
         if (!event) {
           throw new Error(`Evidence event ${track.removalEvent._id} was not found.`);
@@ -424,10 +429,12 @@ const processInspection = async (inspectionId) => {
           continue;
         }
 
-        console.log(
-          `Roboflow response for inspection ${inspectionId}, frame ${frameNumber}:`,
-          JSON.stringify(summarizeWorkflowResponse(responses[i]))
-        );
+        if (process.env.DEBUG_WORKFLOW === "true") {
+          console.log(
+            `Roboflow response for inspection ${inspectionId}, frame ${frameNumber}:`,
+            JSON.stringify(summarizeWorkflowResponse(responses[i]))
+          );
+        }
 
         let frame;
         try {

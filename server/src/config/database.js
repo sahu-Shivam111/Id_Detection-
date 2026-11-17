@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 const connectDB = async () => {
   try {
    
-       const connection = await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI);
     // console.log("DATA_BASE defined:", Boolean(process.env.MONGO_URI));
 
     console.log("MongoDB connected");

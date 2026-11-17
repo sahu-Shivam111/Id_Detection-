@@ -17,6 +17,7 @@ const listInspections = async (req, res) => {
 
     const [items, total] = await Promise.all([
       Inspection.find(filter)
+        .select("-companyMatches")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)

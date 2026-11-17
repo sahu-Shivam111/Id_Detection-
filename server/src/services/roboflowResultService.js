@@ -327,7 +327,16 @@ function normalizeRoboflowResult(response, frameNumber, interval = 1) {
   const companyTextAssessments = assessmentList(
     output.company_text_assessment,
     "company_text_assessment"
-  );
+  ).map((assessment, lanyardIndex) => ({
+    ...assessment,
+    lanyard_index: lanyardIndex,
+  }));
+  if (companyTextAssessments.length !== lanyardColorAssessments.length) {
+    console.warn(
+      `Frame ${frameNumber}: received ${companyTextAssessments.length} company text ` +
+        `results for ${lanyardColorAssessments.length} lanyards; positional matching may be incomplete.`
+    );
+  }
   const lanyardCompanySignals = assessmentList(
     output.lanyard_company_signals,
     "lanyard_company_signals"

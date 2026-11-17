@@ -22,8 +22,15 @@ const TEXT_STATUS_LABELS = {
 };
 
 const r = (n) => Math.round(n);
+const cleanXmlText = (value) =>
+  String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+const cleanOcrText = (value, maxLength = 40) =>
+  cleanXmlText(value).slice(0, maxLength);
 const escapeXml = (value) =>
-  String(value).replace(/[<>&"']/g, (character) => {
+  cleanXmlText(value).replace(/[<>&"']/g, (character) => {
     const entities = {
       "<": "&lt;",
       ">": "&gt;",
@@ -118,7 +125,7 @@ const buildOverlaySvg = (
     const readableText =
       ["company_text_match", "partial_match"].includes(textAssessment?.status) &&
       typeof textAssessment.read_text === "string"
-        ? textAssessment.read_text.trim()
+        ? cleanOcrText(textAssessment.read_text)
         : "";
     const lanyardLabel = `LANYARD | ${colorStatus}`;
     const textLabel = readableText

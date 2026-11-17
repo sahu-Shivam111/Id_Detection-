@@ -14,7 +14,7 @@ const startProcessing = async (req, res) => {
     const inspection = await Inspection.findOneAndUpdate(
       { _id: inspectionId, status: "pending" },
       { status: "processing", errorMessage: null, processedFrames: 0 },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!inspection) {

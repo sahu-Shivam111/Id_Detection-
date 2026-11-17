@@ -28,7 +28,9 @@ const fileFilter = (req, file, cb) => {
     (file.mimetype === "video/webm" && extension === ".webm");
 
   if (!isSupportedVideo) {
-    return cb(new Error("Only MP4 and WebM video files are allowed."));
+    const error = new Error("Only MP4 and WebM video files are allowed.");
+    error.status = 400;
+    return cb(error);
   }
 
   cb(null, true);

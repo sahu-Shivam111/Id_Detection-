@@ -4,7 +4,10 @@ import cors from "cors";
 import http from "http";
 
 import connectDB from "./config/database.js";
+import Inspection from "./models/Inspection.js";
 import { initializeSocket } from "./sockets/socket.js";
+import errorHandler from "./middleware/errorHandler.js";
+import notFound from "./middleware/notFound.js";
 
 import videoRoutes from "./routes/videoRoutes.js";
 import processingRoutes from "./routes/processingRoutes.js";
@@ -46,22 +49,11 @@ app.use("/api/video", videoRoutes);
 app.use("/api/processing", processingRoutes);
 app.use("/api/inspections", inspectionRoutes);
 
-// ==========================================
-// 3. SOCKETS & ERROR HANDLING
-// ==========================================
-
 // Initialize Socket.IO
 initializeSocket(httpServer);
 
-// Error Handling Middleware (Must be registered after routes)
-app.use((error, req, res, next) => {
-  console.error(error.message);
-
-  res.status(error instanceof Error ? 400 : 500).json({
-    success: false,
-    message: error.message || "Something went wrong.",
-  });
-});
+app.use(notFound);
+app.use(errorHandler);
 
 // ==========================================
 // 4. SERVER INITIALISATION
@@ -71,6 +63,21 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
+    // Processing runs in-process, so these jobs cannot resume after this server restarts.
+    const recovery = await Inspection.updateMany(
+      { status: "processing" },
+      {
+        $set: {
+          status: "failed",
+          errorMessage: "Server restarted during processing. Please upload the video again.",
+        },
+      }
+    );
+    if (recovery.modifiedCount > 0) {
+      console.warn(
+        `Marked ${recovery.modifiedCount} interrupted inspection(s) as failed.`
+      );
+    }
 
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
