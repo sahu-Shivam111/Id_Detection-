@@ -1,14 +1,15 @@
 import { NavLink } from "react-router-dom";
 
 const navigation = [
-  { to: "/", label: "New inspection", icon: "＋", end: true },
+  { to: "/", label: "Dashboard", icon: "▦", end: true },
+  { to: "/new-inspection", label: "New inspection", icon: "＋", end: true },
   { to: "/history", label: "Inspection history", icon: "▤" },
 ];
 
 export default function Sidebar() {
   return (
     <aside className="app-sidebar">
-      <NavLink to="/" className="brand-lockup" aria-label="ID Check home">
+      <NavLink to="/" className="brand-lockup" aria-label="ID Check dashboard">
         <span className="brand-mark">ID</span>
         <span>
           <strong>ID Check</strong>

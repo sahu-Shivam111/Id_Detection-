@@ -7,7 +7,8 @@ import Sidebar from "../components/Sidebar";
 const getPageTitle = (pathname) => {
   if (pathname.startsWith("/inspections/")) return "Inspection report";
   if (pathname === "/history") return "Inspection history";
-  return "New inspection";
+  if (pathname === "/new-inspection") return "New inspection";
+  return "Dashboard";
 };
 
 export default function AppLayout() {

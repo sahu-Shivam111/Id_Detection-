@@ -266,7 +266,6 @@ export default function UploadPage() {
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-700">
             Video analysis
           </p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Start a new inspection</h2>
           <p className="mt-1 text-sm text-slate-500">
             Upload or record a video to detect people and review ID-card visibility.
           </p>
@@ -280,7 +279,7 @@ export default function UploadPage() {
             <div className="mb-5 flex items-center gap-3">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-lg text-indigo-700">↥</span>
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Choose a video</h3>
+                <h2 className="text-sm font-bold text-slate-800">Choose a video</h2>
                 <p className="text-xs text-slate-500">MP4 or WebM · Up to 10 MB</p>
               </div>
             </div>

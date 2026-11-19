@@ -92,16 +92,15 @@ export default function HistoryPage() {
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-700">Your workspace</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Inspection history</h2>
           <p className="mt-1 text-sm text-slate-500">Browse completed analyses, track progress, and revisit evidence.</p>
         </div>
-        <Link to="/" className="primary-button"><span aria-hidden="true">＋</span> New inspection</Link>
+        <Link to="/new-inspection" className="primary-button"><span aria-hidden="true">＋</span> New inspection</Link>
       </section>
 
       <section className="surface-card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:px-5">
           <div>
-            <h3 className="text-sm font-bold text-slate-800">All inspections</h3>
+            <h2 className="text-sm font-bold text-slate-800">All inspections</h2>
             <p className="mt-0.5 text-xs text-slate-500">Newest videos appear first.</p>
           </div>
           <button type="button" className="secondary-button !min-h-9 !px-3" onClick={load} disabled={loading}>
@@ -155,7 +154,7 @@ export default function HistoryPage() {
             <p className="mt-1 text-xs text-slate-500">
               {search ? "Try another filename or clear your search." : "Upload a video to see its analysis here."}
             </p>
-            {!search && <Link to="/" className="primary-button mt-4">Start an inspection</Link>}
+            {!search && <Link to="/new-inspection" className="primary-button mt-4">Start an inspection</Link>}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">

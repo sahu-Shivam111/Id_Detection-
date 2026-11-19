@@ -35,6 +35,76 @@ const listInspections = async (req, res) => {
   }
 };
 
+// GET /api/inspections/summary
+const getInspectionSummary = async (req, res) => {
+  try {
+    const [result] = await Inspection.aggregate([
+      { $match: { status: "completed" } },
+      {
+        $facet: {
+          totals: [
+            {
+              $group: {
+                _id: null,
+                completedInspections: { $sum: 1 },
+                idVisibleTracks: { $sum: { $ifNull: ["$peopleWithId", 0] } },
+                confirmedNoIdTracks: { $sum: { $ifNull: ["$peopleWithoutId", 0] } },
+                peopleWithBothMatches: {
+                  $sum: {
+                    $ifNull: [
+                      "$companyMatchCount",
+                      { $size: { $ifNull: ["$companyMatches", []] } },
+                    ],
+                  },
+                },
+                possibleBadgeRemovals: {
+                  $sum: { $ifNull: ["$possibleBadgeRemovals", 0] },
+                },
+              },
+            },
+            { $project: { _id: 0 } },
+          ],
+          recentInspections: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 5 },
+            {
+              $project: {
+                filename: 1,
+                createdAt: 1,
+                peopleWithId: 1,
+                peopleWithoutId: 1,
+                companyMatchCount: {
+                  $ifNull: [
+                    "$companyMatchCount",
+                    { $size: { $ifNull: ["$companyMatches", []] } },
+                  ],
+                },
+                possibleBadgeRemovals: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totals: result?.totals[0] || {
+          completedInspections: 0,
+          idVisibleTracks: 0,
+          confirmedNoIdTracks: 0,
+          peopleWithBothMatches: 0,
+          possibleBadgeRemovals: 0,
+        },
+        recentInspections: result?.recentInspections || [],
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // GET /api/inspections/:id  (inspection + its missing-ID events)
 const getInspection = async (req, res) => {
   try {
@@ -108,4 +178,4 @@ const deleteInspection = async (req, res) => {
   }
 };
 
-export { listInspections, getInspection, deleteInspection };
+export { listInspections, getInspectionSummary, getInspection, deleteInspection };

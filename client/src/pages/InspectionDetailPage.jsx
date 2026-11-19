@@ -101,7 +101,7 @@ export default function InspectionDetailPage() {
             }`}>{inspection.status}</span>
           </div>
         </div>
-        <Link to="/" className="secondary-button">＋ New inspection</Link>
+        <Link to="/new-inspection" className="secondary-button">＋ New inspection</Link>
       </section>
 
       {inspection.errorMessage && (
