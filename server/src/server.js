@@ -23,7 +23,7 @@ const httpServer = http.createServer(app);
 // Enable CORS with support for Preflight (OPTIONS) requests
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: process.env.CLIENT_ORIGIN ,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Added OPTIONS explicitly for preflight
     credentials: true
   })
